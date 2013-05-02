@@ -69,8 +69,7 @@ int main (int argc, char ** argv)
   for (i=0; i < numFG; i++)
   {
     filosofos[i].estado = 'I'; //estado inicial I
-    pthread_create(&(filosofos[i].thread), NULL, comportamentoFilosofo, i );
-    
+    pthread_create(&(filosofos[i].thread), NULL, comportamentoFilosofo, i ); 
   }
   
   //agora roda pra sempre: usar ctrl+c
@@ -140,7 +139,6 @@ void * comportamentoFilosofo(void * arg)
     }      
   }  
 }
-
 
 void imprimeEstado(void)
 {
