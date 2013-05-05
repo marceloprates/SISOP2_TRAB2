@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
-#include <semaphore.h>
 #include <unistd.h>
 
 typedef struct FILOSOFO_T
@@ -18,7 +17,8 @@ filosofo_t * filosofos;
 typedef struct GARFO_T
 {
   char estado; //em: S, ao contrario: N
-  sem_t semaphore;
+  pthread_cond_t cond_var;
+  pthread_mutex_t mutex;
  
 } garfo_t;
 
@@ -29,7 +29,7 @@ garfo_t * garfos;
 int numFG = 0;
 
 //mutex para impedir q as threads se atravessem na impressao do estado na tela
-pthread_mutex_t mutexImpressao = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutexImpressao;//PTHREAD_MUTEX_INITIALIZER;
 
 //funções:
 void imprimeEstado(void);
@@ -52,11 +52,18 @@ int main (int argc, char ** argv)
     fprintf(stderr, "\nNumero de filosofos e garfos invalido. Uso: ./jantar_semaforos n \nn: numero de filosofos e garfos.\n");
     return 0;
   }
+
+  //inicializa mutex da impressão
+  pthread_mutex_init(&mutexImpressao,NULL);
   
   //inicializa os garfos
   garfos = (garfo_t *) malloc(sizeof(garfo_t) * numFG);
   for (i = 0; i < numFG; i++)
-    sem_init(&(garfos[i].semaphore), 0, 1); //inicializa em 1 pois somente um filosofo podera usar o garfo por vez
+  {
+  	garfos[i].estado = 'S';
+    pthread_cond_init(&(garfos[i].cond_var),NULL);
+    pthread_mutex_init(&(garfos[i].mutex),NULL);
+  }
   
   //inicializa os filosofos
   filosofos = (filosofo_t *) malloc(sizeof(filosofo_t) * numFG);
@@ -98,8 +105,17 @@ void * comportamentoFilosofo(void * arg)
     {
       filosofos[id].estado = 'T';
       imprimeEstado();
-      sem_post(&(garfos[garfoEsq].semaphore));
-      sem_post(&(garfos[garfoDir].semaphore));
+
+      pthread_mutex_lock(&(garfos[garfoEsq].mutex));
+      pthread_cond_signal(&(garfos[garfoEsq].cond_var));
+      garfos[garfoEsq].estado = 'S';
+      pthread_mutex_unlock(&(garfos[garfoEsq].mutex));
+
+      pthread_mutex_lock(&(garfos[garfoDir].mutex));
+      pthread_cond_signal(&(garfos[garfoDir].cond_var));
+      garfos[garfoDir].estado = 'S';
+      pthread_mutex_unlock(&(garfos[garfoDir].mutex));
+
       sleep(rand() % 10 + 1); //dorme de 1 a 10 segundos
     }
     
@@ -111,13 +127,32 @@ void * comportamentoFilosofo(void * arg)
 
       if(id == 0)
       {
-        sem_wait(&(garfos[garfoDir].semaphore));
-        sem_wait(&(garfos[garfoEsq].semaphore));
+      	pthread_mutex_lock(&(garfos[garfoDir].mutex));
+      	while(garfos[garfoDir].estado == 'N')
+        	pthread_cond_wait(&(garfos[garfoDir].cond_var),&(garfos[garfoDir].mutex));
+        garfos[garfoDir].estado = 'N';
+        pthread_mutex_unlock(&(garfos[garfoDir].mutex));
+
+        pthread_mutex_lock(&(garfos[garfoEsq].mutex));
+        while(garfos[garfoEsq].estado == 'N')
+        	pthread_cond_wait(&(garfos[garfoEsq].cond_var),&(garfos[garfoEsq].mutex));
+        garfos[garfoEsq].estado = 'N';
+        pthread_mutex_unlock(&(garfos[garfoEsq].mutex));
+      	
       }
       else
-      { 
-        sem_wait(&(garfos[garfoEsq].semaphore));
-        sem_wait(&(garfos[garfoDir].semaphore));
+      {
+      	pthread_mutex_lock(&(garfos[garfoEsq].mutex));
+        while(garfos[garfoEsq].estado == 'N')
+        	pthread_cond_wait(&(garfos[garfoEsq].cond_var),&(garfos[garfoEsq].mutex));
+        garfos[garfoEsq].estado = 'N';
+        pthread_mutex_unlock(&(garfos[garfoEsq].mutex));
+
+        pthread_mutex_lock(&(garfos[garfoDir].mutex));
+      	while(garfos[garfoDir].estado == 'N')
+        	pthread_cond_wait(&(garfos[garfoDir].cond_var),&(garfos[garfoDir].mutex));
+        garfos[garfoDir].estado = 'N';
+        pthread_mutex_unlock(&(garfos[garfoDir].mutex));
       }
     }
     
