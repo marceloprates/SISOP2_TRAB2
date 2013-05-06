@@ -32,7 +32,7 @@ int numFG = 0;
 pthread_mutex_t mutexImpressao = PTHREAD_MUTEX_INITIALIZER;
 
 //funções:
-void imprimeEstado(void);
+void * trocaEstadoFilosofo(int idFilosofo, char novoEstado);
 void * comportamentoFilosofo(void * arg);
 
 
@@ -89,15 +89,13 @@ void * comportamentoFilosofo(void * arg)
     //se está no estado inicial, passa para T
     if (filosofos[id].estado == 'I')
     {
-      filosofos[id].estado = 'T';
-      imprimeEstado();
+      trocaEstadoFilosofo(id, 'T');
       sleep(rand() % 10 + 1); //dorme de 1 a 10 segundos
     }
     //se esta no estado E vai para T e libera os garfos
     else if (filosofos[id].estado == 'E')
     {
-      filosofos[id].estado = 'T';
-      imprimeEstado();
+      trocaEstadoFilosofo(id, 'T');
       sem_post(&(garfos[garfoEsq].semaphore));
       sem_post(&(garfos[garfoDir].semaphore));
       sleep(rand() % 10 + 1); //dorme de 1 a 10 segundos
@@ -106,8 +104,7 @@ void * comportamentoFilosofo(void * arg)
     //se esta no estado T vai para H
     else if (filosofos[id].estado == 'T')
     {
-      filosofos[id].estado = 'H';
-      imprimeEstado();
+      trocaEstadoFilosofo(id, 'H');
 
       if(id == 0)
       {
@@ -124,18 +121,20 @@ void * comportamentoFilosofo(void * arg)
     //se esta no estado H vai para E
     else if (filosofos[id].estado == 'H')
     {
-      filosofos[id].estado = 'E';
-      imprimeEstado();
+      trocaEstadoFilosofo(id, 'E');
       sleep(rand() % 10 + 1); //dorme de 1 a 10 segundos
     }      
   }  
 }
 
-void imprimeEstado(void)
+//troca o estado do filoso para o novo estado, em seção crítica para impedir erros de impressao
+//de estados inconsistentes
+void * trocaEstadoFilosofo(int idFilosofo, char novoEstado)
 {
   int i;
   
   pthread_mutex_lock(&mutexImpressao);
+  filosofos[idFilosofo].estado = novoEstado;
   for (i = 0; i < numFG; i++)
     fprintf(stderr, "%c ", filosofos[i].estado);
   
