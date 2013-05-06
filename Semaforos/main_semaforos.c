@@ -29,7 +29,11 @@ garfo_t * garfos;
 int numFG = 0;
 
 //mutex para impedir q as threads se atravessem na impressao do estado na tela
-pthread_mutex_t mutexImpressao = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutexImpressao;
+
+pthread_cond_t filosofosInicializados;
+pthread_mutex_t mutexFilosofosInicializados;
+int numFilosofosInicializados;
 
 //funções:
 void imprimeEstado(void);
@@ -52,6 +56,9 @@ int main (int argc, char ** argv)
     fprintf(stderr, "\nNumero de filosofos e garfos invalido. Uso: ./jantar_semaforos n \nn: numero de filosofos e garfos.\n");
     return 0;
   }
+
+  //inicializa a mutex impressão
+  pthread_mutex_init(&mutexImpressao,NULL);
   
   //inicializa os garfos
   garfos = (garfo_t *) malloc(sizeof(garfo_t) * numFG);
@@ -60,10 +67,12 @@ int main (int argc, char ** argv)
   
   //inicializa os filosofos
   filosofos = (filosofo_t *) malloc(sizeof(filosofo_t) * numFG);
+  numFilosofosInicializados = 0;
   for (i=0; i < numFG; i++)
   {
     filosofos[i].estado = 'I'; //estado inicial I
-    pthread_create(&(filosofos[i].thread), NULL, comportamentoFilosofo, i ); 
+    numFilosofosInicializados += 1;
+    pthread_create(&(filosofos[i].thread), NULL, comportamentoFilosofo, (void*)i ); 
   }
   
   //agora roda pra sempre: usar ctrl+c
@@ -76,6 +85,15 @@ int main (int argc, char ** argv)
 //recebe como parametro o id do filosofo
 void * comportamentoFilosofo(void * arg)
 {
+  pthread_mutex_lock(&mutexFilosofosInicializados);
+
+  while(numFilosofosInicializados < numFG)
+    pthread_cond_wait(&filosofosInicializados, &mutexFilosofosInicializados);
+
+  pthread_cond_signal(&filosofosInicializados);
+
+  pthread_mutex_unlock(&mutexFilosofosInicializados);
+
   int id = (int) arg;
   
   int garfoEsq, garfoDir;
